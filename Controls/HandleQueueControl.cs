@@ -303,6 +303,18 @@ namespace Microsoft.WindowsAzure.CAT.ServiceBusExplorer
             }
         }
 
+        public void PurgeMessages(int numberOfMessages)
+        {
+            if (queueDescription.EnablePartitioning)
+            {
+                ReadMessagesOneAtTheTime(false, true, numberOfMessages, null);
+            }
+            else
+            {
+                GetMessages(false, true, numberOfMessages, null);
+            }
+        }
+
         public void GetDeadletterMessages()
         {
             using (var receiveModeForm = new ReceiveModeForm(RetrieveMessagesFromDeadletterQueue, MainForm.SingletonMainForm.TopCount, serviceBusHelper.BrokeredMessageInspectors.Keys))
@@ -1463,15 +1475,22 @@ namespace Microsoft.WindowsAzure.CAT.ServiceBusExplorer
                     var queueClient =
                         serviceBusHelper.MessagingFactory.CreateQueueClient(
                             QueueClient.FormatDeadLetterPath(queueDescription.Path), ReceiveMode.PeekLock);
-                    var messageEnumerable = queueClient.PeekBatch(count);
-                    if (messageEnumerable == null)
+                    var totalRetrieved = 0;
+                    int retrieved;
+                    do
                     {
-                        return;
-                    }
-                    var messageArray = messageEnumerable as BrokeredMessage[] ?? messageEnumerable.ToArray();
-                    brokeredMessages = messageInspector != null ?
-                                       messageArray.Select(b => messageInspector.AfterReceiveMessage(b, writeToLog)).ToList() :
-                                       new List<BrokeredMessage>(messageArray);
+                        var messages = queueClient.PeekBatch(all
+                            ? MainForm.SingletonMainForm.TopCount
+                            : count - totalRetrieved);
+                        var enumerable = messages as BrokeredMessage[] ?? messages.ToArray();
+                        retrieved = enumerable.Count();
+                        if (retrieved == 0)
+                        {
+                            continue;
+                        }
+                        totalRetrieved += retrieved;
+                        brokeredMessages.AddRange(messageInspector != null ? enumerable.Select(b => messageInspector.AfterReceiveMessage(b, writeToLog)) : enumerable);
+                    } while (retrieved > 0 && (all || count > totalRetrieved));
                     writeToLog(string.Format(MessagesPeekedFromTheDeadletterQueue, brokeredMessages.Count,
                         queueDescription.Path));
                 }
@@ -2058,10 +2077,6 @@ namespace Microsoft.WindowsAzure.CAT.ServiceBusExplorer
             {
                 e.NewValue = queueDescription.EnablePartitioning ? CheckState.Checked : CheckState.Unchecked;
             }
-            if (e.Index == EnableExpressIndex)
-            {
-                e.NewValue = queueDescription.EnableExpress ? CheckState.Checked : CheckState.Unchecked;
-            }
             if (e.Index == RequiresSessionIndex)
             {
                 e.NewValue = queueDescription.RequiresSession ? CheckState.Checked : CheckState.Unchecked;
@@ -2351,6 +2366,7 @@ namespace Microsoft.WindowsAzure.CAT.ServiceBusExplorer
                     }
 
                     queueDescription.EnableBatchedOperations = checkedListBox.GetItemChecked(EnableBatchedOperationsIndex);
+                    queueDescription.EnableExpress = checkedListBox.GetItemChecked(EnableExpressIndex);
                     queueDescription.EnableDeadLetteringOnMessageExpiration = checkedListBox.GetItemChecked(EnableDeadLetteringOnMessageExpirationIndex);
                     queueDescription.SupportOrdering = checkedListBox.GetItemChecked(SupportOrderingIndex);
 
@@ -2856,7 +2872,7 @@ namespace Microsoft.WindowsAzure.CAT.ServiceBusExplorer
                 messagePropertyGrid.SelectedObject = brokeredMessage;
             }
             // ReSharper disable once EmptyGeneralCatchClause
-            catch
+            catch (Exception)
             {
             }
         }
@@ -2877,6 +2893,7 @@ namespace Microsoft.WindowsAzure.CAT.ServiceBusExplorer
             var stream = messageSession.GetState();
             if (stream == null)
             {
+                txtSessionState.Text = string.Empty;
                 return;
             }
             using (stream)

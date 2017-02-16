@@ -286,6 +286,7 @@ namespace Microsoft.WindowsAzure.CAT.ServiceBusExplorer
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.messagePropertyGrid.BackColor = System.Drawing.SystemColors.Window;
+            this.messagePropertyGrid.CategoryForeColor = System.Drawing.SystemColors.InactiveCaptionText;
             this.messagePropertyGrid.HelpVisible = false;
             this.messagePropertyGrid.LineColor = System.Drawing.Color.FromArgb(((int)(((byte)(215)))), ((int)(((byte)(228)))), ((int)(((byte)(242)))));
             this.messagePropertyGrid.Location = new System.Drawing.Point(16, 32);
@@ -314,7 +315,8 @@ namespace Microsoft.WindowsAzure.CAT.ServiceBusExplorer
             this.cboBodyType.Items.AddRange(new object[] {
             "Stream",
             "String",
-            "WCF"});
+            "WCF",
+            "ByteArray"});
             this.cboBodyType.Location = new System.Drawing.Point(536, 509);
             this.cboBodyType.Name = "cboBodyType";
             this.cboBodyType.Size = new System.Drawing.Size(88, 21);
